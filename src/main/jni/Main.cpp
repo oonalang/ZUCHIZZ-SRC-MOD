@@ -51,6 +51,8 @@ static int g_GlWidth, g_GlHeight;
 static bool g_App = false;
 static EGLBoolean (*old_eglSwapBuffers)(EGLDisplay dpy, EGLSurface surface) = nullptr;
 
+static void UpdateWallhackPatch();
+
 struct PatchSet {
     MemoryPatch wall;
 } patches;
@@ -140,6 +142,7 @@ EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 
     ImDrawList *draw = ImGui::GetBackgroundDrawList();
 
+    UpdateWallhackPatch();
     DrawESP(ImGui::GetBackgroundDrawList(), screenWidth, screenHeight, get_dpi());
     Overlay::Render(draw, screenWidth, screenHeight);
 
@@ -303,11 +306,6 @@ EGLBoolean hook_eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
                 ImGui::PopFont();
                 ImGui::PopStyleVar();
                 ImGui::EndChild();
-                if (Config.ExtraMenu.WallHack) {
-                    patches.wall.Modify();
-                } else {
-                    patches.wall.Restore();
-                } 
 
             }
             ImGui::PopStyleVar(2);
@@ -351,6 +349,18 @@ static void InstallEglHook()
          registerResult, refresh, reinterpret_cast<void *>(old_eglSwapBuffers));
     if (refresh == 0)
         xhook_clear();
+}
+
+static void UpdateWallhackPatch()
+{
+    static int lastState = -1;
+    const int state = Config.ExtraMenu.WallHack ? 1 : 0;
+    if (state == lastState || !patches.wall.isValid())
+        return;
+
+    const bool applied = state != 0 ? patches.wall.Modify() : patches.wall.Restore();
+    if (applied)
+        lastState = state;
 }
 
 void Anogs_Thread()

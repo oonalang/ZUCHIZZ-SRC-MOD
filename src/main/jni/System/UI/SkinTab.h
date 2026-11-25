@@ -546,9 +546,12 @@ inline void ApplyWeaponSkin(const itemInfo &skin) {
         if (skinName) weaponconfFields->LOCID_Name = skinName;
     }
 
-    mapId(activeKillEffects, skin.WeaponExtra[4]);
-    mapId(activeWeaponFireEffects, skin.WeaponAsset[1]);
-    mapId(activeBulletTrackEffects, skin.WeaponAsset[1]);
+    {
+        std::lock_guard<std::mutex> effectLock(g_effectMutex);
+        mapId(activeKillEffects, skin.WeaponExtra[4]);
+        mapId(activeWeaponFireEffects, skin.WeaponAsset[1]);
+        mapId(activeBulletTrackEffects, skin.WeaponAsset[1]);
+    }
 
     for (auto extra : weaponExtraInstance) {
         if (!SkinPtr(extra)) continue;
@@ -598,6 +601,7 @@ inline void ApplyWeaponSkin(const itemInfo &skin) {
 }
 
 inline void SkinContent(int categoryIndex) {
+    std::lock_guard<std::mutex> skinDataLock(g_skinDataMutex);
     static int rarityFilter = 0;
     static char charSearch[256] = "";
     static char targetSearch[256] = "";

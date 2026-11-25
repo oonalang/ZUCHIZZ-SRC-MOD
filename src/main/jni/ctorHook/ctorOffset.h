@@ -18,7 +18,10 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 
+std::mutex g_skinDataMutex;
+std::mutex g_effectMutex;
 std::unordered_map<std::string, bool> sBool;
 std::unordered_map<int, int> activeKillEffects;
 std::unordered_map<int, int> activeBulletTrackEffects;
@@ -282,7 +285,9 @@ void *GameUpdate(void *) {
 
                         if (Zz.find("A+") != std::string::npos) h--;
 
-                        charData.push_back({
+                        {
+                            std::lock_guard<std::mutex> lock(g_skinDataMutex);
+                            charData.push_back({
                             Zz,
                             (int)Z1->ID,
                             {B, C, D, E, F, G, H, I, J, K, L, M},
@@ -291,13 +296,14 @@ void *GameUpdate(void *) {
                             {a, b, c, d, e, f, g, h},
                             {Z1->LOCID_Name},
                             {rolePackID, entryAnimID, gestureId, handEffectUI, loadingFrame, killStreakSkinID}
-                        });
-
-                        g_targetCharacters.push_back({runtimeName, N, X1->Traitor3P, (int)W, (int)Z1->ID, rolePackID});
+                            });
+                            g_targetCharacters.push_back({runtimeName, N, X1->Traitor3P, (int)W, (int)Z1->ID, rolePackID});
+                        }
                     }
                     break;
                 }
             }
+            std::lock_guard<std::mutex> lock(g_skinDataMutex);
             if (!g_targetCharacters.empty() && g_selectedTargetCharIndex == 0) {
                 for (size_t i = 0; i < g_targetCharacters.size(); ++i) {
                     if (ToLower(g_targetCharacters[i].name) == "charly") {
@@ -322,13 +328,8 @@ void *GameUpdate(void *) {
                 for (auto item : itemInventoryInstance) {
                     if (!item) continue;
                     auto itemIDbase = *(int *) ((uintptr_t) item + 0x20);
-                    int itemBaseModified;
-
-                    int itemBase;
-                    if (baseID == itemIDbase) {
-                        itemBase = *(int *) ((uintptr_t) item + 0x20);
-                        itemBaseModified = itemBase + 200;
-                    }
+                    const int itemBase = baseID;
+                    const int itemBaseModified = itemBase + 200;
 
                     if (confID == itemIDbase) {
                         auto confcolorID = *(uint8_t *) ((uintptr_t) conf + 0x22);
@@ -454,8 +455,8 @@ void *GameUpdate(void *) {
                                 auto sightID = *(int *) ((uintptr_t) sight + 0x14);
                                 auto equipArray = *(Array<int>**) ((uintptr_t) sight + 0x38);
 
-                                if (equipArray && equipArray->getLength() > 0) {
-                                    if (itemIDskin3 == equipArray->m_Items[equipArray->getLength()]) {
+                                if (Tools::IsPtrValid(equipArray) && equipArray->getLength() > 0) {
+                                    if (itemIDskin3 == equipArray->m_Items[equipArray->getLength() - 1]) {
                                         if (AName.find("[M]") != std::string::npos) {
                                             sightMythic = sightID;
                                         }
@@ -469,14 +470,14 @@ void *GameUpdate(void *) {
                                 auto equipArray = *(Array<int> **) ((uintptr_t) wKilling + 0x90);
 
                                 int canEquip = 0;
-                                if (equipArray && equipArray->getLength() > 0) {
-                                    canEquip = equipArray->m_Items[equipArray->getLength()];
+                                if (Tools::IsPtrValid(equipArray) && equipArray->getLength() > 0) {
+                                    canEquip = equipArray->m_Items[equipArray->getLength() - 1];
                                 }
 
                                 auto realAssetIDs_1 = *(Array<int> **) ((uintptr_t) wKilling + 0x10);
                                 int lastAssetID = 0;
-                                if (realAssetIDs_1 && realAssetIDs_1->getLength() > 0) {
-                                    lastAssetID = realAssetIDs_1->m_Items[realAssetIDs_1->getLength()];
+                                if (Tools::IsPtrValid(realAssetIDs_1) && realAssetIDs_1->getLength() > 0) {
+                                    lastAssetID = realAssetIDs_1->m_Items[realAssetIDs_1->getLength() - 1];
                                 }
 
                                 if (itemIDskin3 == canEquip) {
@@ -515,6 +516,7 @@ void *GameUpdate(void *) {
                                 }
                             }
 
+                            std::lock_guard<std::mutex> lock(g_skinDataMutex);
                             itemData.push_back({AName,
                                 {itemBase, itemIDskin2, itemIDskin3, itemBaseModified},
                                 {confbaseskin, confColorID, confID, confBrocastID, confBluePrintID},

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 #include <algorithm>
 #include "Hacks/StructGame/StructSDK.h"
 
@@ -90,6 +91,8 @@ extern std::vector<void *> RoleSkinConfigInstance;
 extern std::vector<void *> RolePackConfConfigInstance;
 
 extern std::unordered_map<std::string, bool> sBool;
+extern std::mutex g_skinDataMutex;
+extern std::mutex g_effectMutex;
 extern std::unordered_map<int, int> activeKillEffects;
 
 extern std::unordered_map<int, int> activeBulletTrackEffects;
@@ -108,13 +111,14 @@ extern int g_selectedTargetCharIndex;
 int (*orig_GetCurrentWeaponKillEffect)(Weapon);
 int _GetCurrentWeaponKillEffect(Weapon weapon) {
     Pawn* localPawn = GamePlay::get_LocalPawn();
-    if (!localPawn) return 0;
+    if (!Tools::IsPtrValid(localPawn)) return 0;
 
     Weapon* currentWeapon = localPawn->get_CurrentWeapon();
-    if (!currentWeapon) return 0;
+    if (!Tools::IsPtrValid(currentWeapon)) return 0;
 
     int currentID = currentWeapon->get_WeaponID();
 
+    std::lock_guard<std::mutex> lock(g_effectMutex);
     auto it = activeKillEffects.find(currentID);
     if (it != activeKillEffects.end()) {
         return it->second;
@@ -126,13 +130,14 @@ int _GetCurrentWeaponKillEffect(Weapon weapon) {
 int (*orig_GetCurrentBulletTrackEffect)(Weapon);
 int _GetCurrentBulletTrackEffect(Weapon weapon) {
     Pawn* localPawn = GamePlay::get_LocalPawn();
-    if (!localPawn) return 0;
+    if (!Tools::IsPtrValid(localPawn)) return 0;
 
     Weapon* currentWeapon = localPawn->get_CurrentWeapon();
-    if (!currentWeapon) return 0;
+    if (!Tools::IsPtrValid(currentWeapon)) return 0;
 
     int currentID = currentWeapon->get_WeaponID();
 
+    std::lock_guard<std::mutex> lock(g_effectMutex);
     auto it = activeBulletTrackEffects.find(currentID);
     if (it != activeBulletTrackEffects.end()) {
         return it->second;
@@ -144,13 +149,14 @@ int _GetCurrentBulletTrackEffect(Weapon weapon) {
 int (*orig_GetCurrentWeaponFireEffect)(Weapon);
 int _GetCurrentWeaponFireEffect(Weapon weapon) {
     Pawn* localPawn = GamePlay::get_LocalPawn();
-    if (!localPawn) return 0;
+    if (!Tools::IsPtrValid(localPawn)) return 0;
 
     Weapon* currentWeapon = localPawn->get_CurrentWeapon();
-    if (!currentWeapon) return 0;
+    if (!Tools::IsPtrValid(currentWeapon)) return 0;
 
     int currentID = currentWeapon->get_WeaponID();
 
+    std::lock_guard<std::mutex> lock(g_effectMutex);
     auto it = activeWeaponFireEffects.find(currentID);
     if (it != activeWeaponFireEffects.end()) {
         return it->second;

@@ -105,23 +105,23 @@ uintptr_t GetClosestTarget() {
     if (Tools::IsPtrValid((void *) get_MatchGame)) {
         auto Gameplay_get_LocalPawn = (uintptr_t (*)()) (Class_Gameplay_get_LocalPawn);
         auto LocalPawn = Gameplay_get_LocalPawn();
-        if (LocalPawn) {
+        if (Tools::IsPtrValid((void *)LocalPawn)) {
             Vector3 MyPos{0, 0, 0};
             auto local_m_Mesh = *(Transform **) (LocalPawn + Class_Pawn_m_Mesh);
-            if (local_m_Mesh) {
+            if (Tools::IsPtrValid(local_m_Mesh)) {
                 MyPos = local_m_Mesh->get_position();
             }
             auto EnemyPawns = *(List<uintptr_t> **) (get_MatchGame + Class_BaseGame_EnemyPawns);
-            if (EnemyPawns) {
-                auto Items = EnemyPawns->getItems();
+            if (Tools::IsPtrValid(EnemyPawns) && Tools::IsPtrValid(EnemyPawns->items)) {
+                auto Items = EnemyPawns->items->getPointer();
                 if (Items) {
-                    for (int i = 0; i < EnemyPawns->getSize(); i++) {
+                    for (int i = 0, enemyCount = EnemyPawns->getSize(); i < enemyCount && i < 512; i++) {
                         auto Pawn = Items[i];
-                        if (Pawn) {
+                        if (Tools::IsPtrValid((void *)Pawn)) {
                             if (!*(bool *) (Pawn + Class_Pawn_m_IsAlive))
                                 continue;
                             auto m_Mesh = *(Transform **) (Pawn + Class_Pawn_m_Mesh);
-                            if (!m_Mesh)
+                            if (!Tools::IsPtrValid(m_Mesh))
                                 continue;
                             auto RootPos = m_Mesh->get_position();
                             float Distance = Vector3::Distance(MyPos, RootPos);
@@ -168,19 +168,19 @@ uintptr_t GetInsideFOVTarget() {
     if (Tools::IsPtrValid((void *) get_MatchGame)) {
         auto Gameplay_get_LocalPawn = (uintptr_t (*)()) (Class_Gameplay_get_LocalPawn);
         auto LocalPawn = Gameplay_get_LocalPawn();
-        if (LocalPawn) {
+        if (Tools::IsPtrValid((void *)LocalPawn)) {
             Vector3 MyPos{0, 0, 0};
             auto local_m_Mesh = *(Transform **) (LocalPawn + Class_Pawn_m_Mesh);
-            if (local_m_Mesh) {
+            if (Tools::IsPtrValid(local_m_Mesh)) {
                 MyPos = local_m_Mesh->get_position();
             }
             auto EnemyPawns = *(List<uintptr_t> **) (get_MatchGame + Class_BaseGame_EnemyPawns);
-            if (EnemyPawns) {
-                auto Items = EnemyPawns->getItems();
+            if (Tools::IsPtrValid(EnemyPawns) && Tools::IsPtrValid(EnemyPawns->items)) {
+                auto Items = EnemyPawns->items->getPointer();
                 if (Items) {
-                    for (int i = 0; i < EnemyPawns->getSize(); i++) {
+                    for (int i = 0, enemyCount = EnemyPawns->getSize(); i < enemyCount && i < 512; i++) {
                         auto Pawn = Items[i];
-                        if (Pawn) {
+                        if (Tools::IsPtrValid((void *)Pawn)) {
                             auto isAlive = *(bool*) ((uintptr_t)Pawn + Class_Pawn_m_IsAlive);
                             if (!isAlive)
                                 continue;
@@ -219,7 +219,7 @@ void DrawAimLine(ImDrawList* draw, int sWidth, int sHeight) {
     if (Target) {
         Vector3 targetPos;
         auto m_HeadBone = *(Transform**)(Target + Class_Pawn_m_HeadBone);
-        if (!m_HeadBone) return;
+        if (!Tools::IsPtrValid(m_HeadBone)) return;
         if (Config.Aim.Target == EAimTarget::Heads) {
             targetPos = m_HeadBone->get_position();
         } else if (Config.Aim.Target == EAimTarget::Chests) {
@@ -229,7 +229,9 @@ void DrawAimLine(ImDrawList* draw, int sWidth, int sHeight) {
             targetPos = m_HeadBone->get_position();
             targetPos.y -= 0.4f;
         }
-        auto HeadSc = Camera::get_main()->WorldToScreenPoint(targetPos);
+        auto main = Camera::get_main();
+        if (!Tools::IsPtrValid(main)) return;
+        auto HeadSc = main->WorldToScreenPoint(targetPos);
         if (HeadSc.z > 0) {
             ImVec2 center(sWidth / 2, sHeight / 2);
             draw->AddLine(center, ImVec2(HeadSc.x, sHeight - HeadSc.y), ToColor(Config.sColorsESPPLAYER.LinePLAYER), Config.sESPMenuLineScale.lineSize);
@@ -518,7 +520,12 @@ static inline void DrawPlayerHeader(ImDrawList *draw, Pawn *pawn, float centerX,
     float cursorX = x;
     if (Config.ESPMenu.Name) {
         draw->AddRectFilled(ImVec2(cursorX, y), ImVec2(cursorX + nameW, y + headerH), IM_COL32(0, 0, 0, 210));
-        std::string name = pawn->m_IsBot() ? "BOT" : pawn->get_PlayerName()->CString();
+        std::string name = "BOT";
+        if (!pawn->m_IsBot()) {
+            String *playerName = pawn->get_PlayerName();
+            if (!Tools::IsPtrValid(playerName)) return;
+            name = playerName->CString();
+        }
         ImVec2 nameSize = ImGui::CalcTextSize(name.c_str());
         nameSize.x *= fontSize / ImGui::GetFontSize();
         DrawTextWithBorder1(draw, name, Vector2(cursorX + (nameW - nameSize.x) * 0.5f, y + 3.0f * scale), IM_COL32(255, 255, 255, 255), IM_COL32(0, 0, 0, 255), fontSize);
@@ -627,16 +634,21 @@ void DrawESP(ImDrawList *draw, int sWidth, int sHeight, float density) {
 
     Vector3 pLocalPawn_rootPos = Vector3::zero();
     Pawn *get_LocalPawn = GamePlay::get_LocalPawn();
-    if (Tools::IsPtrValid(get_LocalPawn)) {
-        pLocalPawn_rootPos = get_LocalPawn->get_LastPawnPos();
+    if (!Tools::IsPtrValid(get_LocalPawn)) {
+        totalBots = totalEnemies = 0;
+        return;
     }
+    pLocalPawn_rootPos = get_LocalPawn->get_LastPawnPos();
 
     totalBots = 0, totalEnemies = 0;
     List<Pawn *> *EnemyPawns = get_MatchGame->EnemyPawns();
-    if (!Tools::IsPtrValid(EnemyPawns) || !EnemyPawns->getSize()) return;
+    if (!Tools::IsPtrValid(EnemyPawns) || !Tools::IsPtrValid(EnemyPawns->items)) return;
 
-    Pawn **pawns = (Pawn **)EnemyPawns->getItems();
-    for (int i = 0; i < EnemyPawns->getSize(); i++) {
+    const int enemyCount = EnemyPawns->getSize();
+    if (enemyCount <= 0 || enemyCount > 512) return;
+    Pawn **pawns = (Pawn **)EnemyPawns->items->getPointer();
+    if (!Tools::IsPtrValid(pawns)) return;
+    for (int i = 0; i < enemyCount; i++) {
         Pawn *pawn = pawns[i];
         if (!Tools::IsPtrValid(pawn)) continue;
 
@@ -644,15 +656,15 @@ void DrawESP(ImDrawList *draw, int sWidth, int sHeight, float density) {
         if (!Tools::IsPtrValid((void *)m_PlayerInfo)) continue;
 
         auto m_AttackableInfo = *(uintptr_t *)(pawn + Class_AttackableTarget_m_AttackableInfo);
+        if (!Tools::IsPtrValid((void *)m_AttackableInfo)) continue;
         int CurHP = (int)*(float *)(m_AttackableInfo + Class_AttackableTarget_m_Health);
         int MaxHP = (int)*(float *)(m_AttackableInfo + Class_AttackableTarget_m_MaxHealth);
 
         auto m_HeadBone = *(Transform **)(pawn + Class_Pawn_m_HeadBone);
         auto m_Mesh = *(Transform **)(pawn + Class_Pawn_m_Mesh);
-        if (!Tools::IsPtrValid(m_HeadBone) || !m_Mesh || !*(bool *)(pawn + Class_Pawn_m_IsAlive)) continue;
+        if (!Tools::IsPtrValid(m_HeadBone) || !Tools::IsPtrValid(m_Mesh) || !*(bool *)(pawn + Class_Pawn_m_IsAlive)) continue;
 
         bool isBot = *(bool *)((uintptr_t)pawn + Class_Pawn_m_IsBot);
-        bool isAlive = *(bool *)((uintptr_t)pawn + Class_Pawn_m_IsAlive);
 
         if (isBot) totalBots++; else totalEnemies++;
 
@@ -681,19 +693,14 @@ void DrawESP(ImDrawList *draw, int sWidth, int sHeight, float density) {
         Vector3 pEnemyPawn_rootPos = pawn->get_LastPawnPos();
         float distanceToMe = Vector3::Distance(pLocalPawn_rootPos, pEnemyPawn_rootPos);
 
-        Vector3 HeadSc = Camera::get_main()->WorldToScreenPoint(pEnemyPawn_headPos);
-        Vector3 RootSc = Camera::get_main()->WorldToScreenPoint(pEnemyPawn_rootPos);
+        Camera *mainCamera = Camera::get_main();
+        if (!Tools::IsPtrValid(mainCamera)) continue;
+        Vector3 HeadSc = mainCamera->WorldToScreenPoint(pEnemyPawn_headPos);
+        Vector3 RootSc = mainCamera->WorldToScreenPoint(pEnemyPawn_rootPos);
 
 		float actualHeight = Vector3::Distance(pEnemyPawn_headPos, pEnemyPawn_rootPos);
 
         if (HeadSc.z > 0 && pawn->m_IsAlive()) {
-
-            AttackableTargetInfo *m_AttackableInfoPtr = pawn->m_AttackableInfo();
-            if (m_AttackableInfoPtr != nullptr && isAlive) {
-                if (Tools::IsPtrValid(pawn) && Tools::IsPtrValid(pawn->get_PlayerName())) {
-                    std::string playerName = pawn->get_PlayerName()->CString();
-                }
-            }
 
             Vector2 screen(sWidth, sHeight);
             Vector2 location(RootSc.x, HeadSc.y);
