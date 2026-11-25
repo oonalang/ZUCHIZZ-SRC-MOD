@@ -1,0 +1,6 @@
+# view AndroidManifest.xml #generated:35
+-keep class com.android.support.MainActivity { <init>(...); }
+
+# view AndroidManifest.xml #generated:50
+-keep class com.android.support.Menu { <init>(...); }
+
